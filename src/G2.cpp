@@ -22,7 +22,9 @@
 #include <math.h>
 #include <sys/timeb.h>
 #include <chrono>
+
 #include"oled_driver.h"
+#include "adc.h"
 
 using namespace std;
 using namespace exploringBB;
@@ -41,18 +43,18 @@ uint64_t millis()
 }
 
 
-/* ANALOG */
-#define LDR_PATH "/sys/bus/iio/devices/iio:device0/in_voltage"
-int readAnalog(int number){
-// returns the input as an int
-stringstream ss;
-ss << LDR_PATH << number << "_raw";
-fstream fs;
-fs.open(ss.str().c_str(), fstream::in);
-fs >> number;
-fs.close();
-return number;
-}
+///* ANALOG */
+//#define LDR_PATH "/sys/bus/iio/devices/iio:device0/in_voltage"
+//int readAnalog(int number){
+//// returns the input as an int
+//stringstream ss;
+//ss << LDR_PATH << number << "_raw";
+//fstream fs;
+//fs.open(ss.str().c_str(), fstream::in);
+//fs >> number;
+//fs.close();
+//return number;
+//}
 
 void system_init()
 {
@@ -178,8 +180,8 @@ static void init_game()
 	boy.set_dx (3);
 	boy.set_move (true);
 
-	coin.set_x(rand() % 100);
-	coin.set_y (rand() % 40);
+	coin.set_x(rand() % 120);
+	coin.set_y (rand() % 52);
 	coin.set_w (8);
 	coin.set_h (8);
 	coin.set_dy (0);
@@ -304,16 +306,92 @@ void game_value_reset(bool *start_game, int *life, int *score)
 	*start_game = true;
 	*life = 64;
 	*score = 0;
-	init_game();
 	clearDisplay();
 }
+
+
+	class Triangle
+	{
+	private:
+		int x0, y0;
+		int x1, y1;
+		int x2, y2;
+
+	public:
+
+		Triangle(int a0, int b0, int a1, int b1, int a2, int b2)
+		{
+			x0 = a0;
+			y0 = b0;
+
+			x1 = a1;
+			y1 = b1;
+
+			x2 = a2;
+			y2 = b2;
+		}
+
+		void set_x0(int x)
+			{ x0 = x; }
+
+		int get_x0()
+			{return  x0;}
+
+		void set_y0(int y)
+			{ y0 = y; }
+
+		int get_y0()
+			{return  y0;}
+
+		void set_x1(int x)
+			{ x1 = x;}
+
+		int get_x1()
+
+			{return  x1;}
+
+		void set_y1(int y)
+			{ y1 = y; }
+
+		int get_y1()
+			{return  y1;}
+
+		void set_x2(int x)
+			{ x2 = x; }
+
+		int get_x2()
+			{return  x2;}
+
+		void set_y2(int y)
+			{ y2 = y;}
+
+		int get_y2()
+			{return  y2;}
+
+		virtual void Rotate(int x0,int y0,int x1,int y1,int x2,int y2, float Angle);
+	};
+
+	void Triangle :: Rotate(int x0,int y0,int x1,int y1,int x2,int y2, float Angle)
+	{
+	    int x,y,a0,b0,a1,b1,a2,b2,p=x0,q=y0;
+
+	    drawTriangle(x0,  y0, x1, y1,  x2 , y2 , BLACK);
+	    Angle=(Angle*3.14)/180;
+	    a0=p+(x0-p)*cos(Angle)-(y0-q)*sin(Angle);
+	    b0=q+(x0-p)*sin(Angle)+(y0-q)*cos(Angle);
+	    a1=p+(x1-p)*cos(Angle)-(y1-q)*sin(Angle);
+	    b1=q+(x1-p)*sin(Angle)+(y1-q)*cos(Angle);
+	    a2=p+(x2-p)*cos(Angle)-(y2-q)*sin(Angle);
+	    b2=q+(x2-p)*sin(Angle)+(y2-q)*cos(Angle);
+	    printf("Rotate");
+	    drawTriangle(a0,  b0, a1, b1,  a2 , b2, WHITE);
+	}
 
 int main()
 {
 	bool debug = false;
 	cout << "BOY vs Ghost" << endl; // prints !!!Hello World!!!
 	system_init();
-	init_game();
 
 	int ghosts = sizeof(ghost)/sizeof(ghost[0]);
 	GPIO button_a(115);
@@ -328,154 +406,48 @@ int main()
 	uint64_t t_ms;
 	bool boy_damage = false;
 
-	game_start_screen();
+	int ang = 10;
 
-	while(!start_game)
+	Triangle T1(2, 2, 2, 10, 20, 10);
+
+
+//	for(int i= 0; i < 50; i ++)
+	while(1)
 	{
-		if(button_a.getValue())
-		{
-			game_value_reset(&start_game, &life, &score);
-		}
-	}
-
-
-while(1)
-{
-	while(life > 0)
-	{
-		t_ms = millis();
 		x = readAnalog(0);
 		y = readAnalog(2);
-		a = button_a.getValue();
 
 
-		/*BOY*/
-		if(t_ms % 1 == 0)
-		{
-			/*Clear screen*/
-			clearDisplay();
-
-			for(int i=0; i < ghosts; i++)
-			{
-
-				if(check_collision(ghost[i],boy))
-					life-=2;
-					boy_damage = true;
-			}
-
-			if(check_collision(coin,boy))
-			{
-				score++;
-				coin.set_x(rand() % 100);
-				coin.set_y (rand() % 40);
-
-			}
-
-			move_ghost();
-
-			/* boy movements */
-			/*x*/
-			if(x > 2000)
-			{
-				if(boy.get_x() <= 0)
-					boy.set_x(0);
-				else
-					boy.set_x(boy.get_x()- boy.get_dx());
-//					boy.x-=boy.dx;
-				boy.set_move (true);
-			}
-
-			if(x < 1300)
-	   	   {
-		   	   if(boy.get_x() >= 112)
-					boy.set_x(112);
-				else
-					boy.set_x(boy.get_x()+ boy.get_dx());
-				boy.set_move (true);
-			}
-
-	   		/*y*/
-	   		if(y > 2000)
-	   		{
-	   			if(boy.get_y() >= 49)
-	   				boy.set_y (49);
-	   			else
-	   				boy.set_y(boy.get_y() + boy.get_dy());
-	   			boy.set_move (true);
-	   		}
-
-	   		if(y < 1300)
-	   		{
-	   			if(boy.get_y() <= 0)
-	   				boy.set_y(0);
-	   			else
-	   				boy.set_y(boy.get_y() - boy.get_dy());
-	   			boy.set_move (true);
-	   		}
+//		if(x > 2000)
+//			x1--;
+//			x0--;
+//
+//		if(x < 1300)
+//			x1++;
+//			x0--;
 
 
-	   		/*Update screen*/
+//		clearDisplay();
+//		drawTriangle(x0,  y0, x1, y1,  x2 , y2 , WHITE);
+		T1.Rotate(2, 2, 2, 10, 20, 10, ang);
 
-	   		if((boy.get_y()%2 == 0 || boy.get_x()%2 == 0) && boy.get_move())
-	   		{
-	   			drawBitmap(boy.get_x(), boy.get_y(),  r_leg_up, boy.get_w(), boy.get_h(), VISIBLE);
-	   			boy.set_move(false);
-	   		}
-
-	   		else if (boy.get_move())
-	   		{
-	   			drawBitmap(boy.get_x(), boy.get_y(),  l_leg_up, boy.get_w(), boy.get_h(), VISIBLE);
-	   			boy.set_move (false);
-	   		}
-	   		else if (boy_damage)
-	   		{
-	   			drawBitmap(boy.get_x(), boy.get_y(),  big_mounth, boy.get_w(), boy.get_h(), VISIBLE);
-	   			boy_damage = false;
-	   		}
-	   		else
-	   			drawBitmap(boy.get_x(), boy.get_y(),  stand, boy.get_w(), boy.get_h(), VISIBLE);
+		Display();
+		ang ++;
 
 
-	   		for(int i=0; i < ghosts; i++)
-	   		{
-	   			if(ghost[i].get_move())
-	   				drawBitmap(ghost[i].get_x(), ghost[i].get_y(),  ghost_small_m1, ghost[i].get_w(), ghost[i].get_h(), VISIBLE);
-	   			else
-	   				drawBitmap(ghost[i].get_x(), ghost[i].get_y(),  ghost_big_m2, ghost[i].get_w(), ghost[i].get_h(), VISIBLE);
 
-	   			ghost[i].set_move(!ghost[i].get_move());
-	   		}
-	   		if(t_ms % 2 == 0)
-	   			drawBitmap(coin.get_x(), coin.get_y(),  coin_bmp, coin.get_w(), coin.get_h(), VISIBLE);
-	   		else
-	   			drawBitmap(coin.get_x(), coin.get_y(),  coin__blink_bmp, coin.get_w(), coin.get_h(), VISIBLE);
-
-		}
-
-		show_scre_life(life, score);
-
-		if(debug)
-		{
-			cout << "x: " << boy.get_x() << " y: " << boy.get_y() << " a: " << a << endl;
-			cout << "life " << life << endl;
-			cout << "score " << score << endl;
-			cout << "t_ms: "<< t_ms << endl;
-		}
+		usleep(1000);
 
 	}
 
-	start_game = false;
 
-	game_end_screen(score);
+//	t_ms = millis();
+//	x = readAnalog(0);
+//	y = readAnalog(2);
+//	a = button_a.getValue();
 
-	 while(!start_game)
-	 	{
-	 		if(button_a.getValue())
-	 		{
-	 			game_value_reset(&start_game, &life, &score);
-	 		}
-	 	}
-}
+//	drawBitmap(boy.get_x(), boy.get_y(),  r_leg_up, boy.get_w(), boy.get_h(), VISIBLE);
+
 
 	return 0;
 }
